@@ -522,6 +522,42 @@ slowly, the engine prints a hint under its `loaded ... GiB at ...` line naming t
 
 ## Linux
 
+### Jetson AGX Orin (ARM64, CUDA 12.6)
+
+The `feat/jetson-orin-arm64` branch builds on the Jetson AGX Orin 32 GB with
+JetPack 6.2, GCC 11.4 and nvcc 12.6.68, targeting sm_87. See the
+[implementation plan and validation status](JETSON_ORIN_PLAN.md) and
+[portability tests](../bench/results/2026-10-07-jetson-orin/README.md) and
+[real-model results](../bench/results/2026-10-08-jetson-orin/README.md).
+The pinned Coder IQ1_M model runs with file-backed experts and MTP on this Orin.
+Three runs per prompt size measured median decode throughput of 18.6–21.6
+tokens/s for 64-token outputs at context 4096, with 172–1069 prompt tokens.
+A 31234-token prompt passed at context 32768 and retained at least 7.33 GiB
+available physical RAM across startup, the request and recovery. The CPU and
+CUDA image encoders and repeated image API requests also passed
+with a 56-by-56 fixture and a 16-token encoder cap. Larger images and other
+quantizations have not been validated on this host. The results record raw-token
+log-probability differences against the CPU reference; universal numerical
+parity is not established.
+
+CPU and GPU allocations share physical RAM. Setup builds the engine locally
+with `./setup.sh --cuda 12`; it keeps JetPack's toolkit and does not download an
+x86 engine. Its initial context recommendation is 32768. The runtime cache
+budget uses currently available physical memory, bounded by cgroups and CUDA's
+allocation ceiling, with six GiB reserved by default. Swap does not increase
+this budget. `STRATA_UMA_HEADROOM_GIB` sets the reserve in whole GiB; the default
+is an allocation policy, not a measured inference requirement. Integrated-device
+auto cache sizing also leaves 3072 MiB for late workspaces unless an explicit
+`--vram-reserve-mib` is supplied. Startup checks available physical RAM after
+initialization. These checks cannot reserve RAM against other processes.
+
+Expert files fall back to file-backed loading when the full host arena exceeds
+the shared budget. CUDA allocations and mapped registered host buffers retain
+their existing roles. Orin reports managed memory support but no concurrent
+managed access; managed allocations cannot replace concurrently polled
+CPU/GPU control buffers.
+
+
 ```bash
 ./setup.sh
 ```
